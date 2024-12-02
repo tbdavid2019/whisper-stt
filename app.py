@@ -16,10 +16,10 @@ def transcribe_audio(audio, model_size, language):
     return result["text"]
 
 # 使用 Gradio 構建介面
-audio_input = gr.inputs.Audio(source="upload", type="filepath", label="上傳音頻")
-model_input = gr.inputs.Dropdown(choices=MODEL_OPTIONS, default=DEFAULT_MODEL, label="選擇 Whisper 模型")
-language_input = gr.inputs.Radio(choices=LANGUAGE_OPTIONS, default="Chinese (Traditional)", label="選擇轉錄語言")
-text_output = gr.outputs.Textbox(label="轉錄結果")
+audio_input = gr.Audio(source="upload", type="filepath", label="上傳音頻")
+model_input = gr.Dropdown(choices=MODEL_OPTIONS, value=DEFAULT_MODEL, label="選擇 Whisper 模型")
+language_input = gr.Radio(choices=LANGUAGE_OPTIONS, value="Chinese (Traditional)", label="選擇轉錄語言")
+text_output = gr.Textbox(label="轉錄結果")
 
 description = "上傳音頻文件，選擇 Whisper 模型和語言來轉錄音頻內容。"
 
