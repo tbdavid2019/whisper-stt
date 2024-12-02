@@ -8,7 +8,7 @@ DEFAULT_MODEL = "small"
 DEFAULT_PROMPT = "請轉錄以下內容為繁體中文"
 
 # 建立語音轉錄功能
-def transcribe_audio(audio, model_size, language):
+def transcribe_audio(audio, model_size):
     model = whisper.load_model(model_size)
     result = model.transcribe(audio, prompt=DEFAULT_PROMPT)
     return result["text"]
