@@ -15,7 +15,11 @@ def transcribe_audio(audio, model_size, prompt, use_openai, openai_api_key):
             return "請輸入 OpenAI API Key"
         openai.api_key = openai_api_key
         with open(audio, "rb") as audio_file:
-            response = openai.Audio.transcribe("whisper-1", audio_file, prompt=prompt)
+            response = openai.Audio.transcriptions.create(
+                model="whisper-1", 
+                file=audio_file,
+                prompt=prompt
+            )
         return response["text"]
     else:
         model = whisper.load_model(model_size)
