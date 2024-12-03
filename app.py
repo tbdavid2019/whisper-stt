@@ -1,7 +1,7 @@
 import gradio as gr
 import whisper
 import os
-import openai
+import requests
 
 # 載入模型，預設為 small
 MODEL_OPTIONS = ["tiny", "base", "small", "medium", "large", "large-v2", "large-v3"]
@@ -13,14 +13,19 @@ def transcribe_audio(audio, model_size, prompt, use_openai, openai_api_key):
     if use_openai:
         if not openai_api_key:
             return "請輸入 OpenAI API Key"
-        openai.api_key = openai_api_key
-        with open(audio, "rb") as audio_file:
-            response = openai.Audio.transcriptions.create(
-                model="whisper-1", 
-                file=audio_file,
-                prompt=prompt
-            )
-        return response["text"]
+        headers = {
+            "Authorization": f"Bearer {openai_api_key}"
+        }
+        files = {
+            "file": (os.path.basename(audio), open(audio, "rb")),
+            "model": (None, "whisper-1"),
+            "prompt": (None, prompt)
+        }
+        response = requests.post("https://api.openai.com/v1/audio/transcriptions", headers=headers, files=files)
+        if response.status_code == 200:
+            return response.json().get("text", "轉錄失敗")
+        else:
+            return f"轉錄失敗: {response.status_code} - {response.text}"
     else:
         model = whisper.load_model(model_size)
         result = model.transcribe(audio, prompt=prompt)
