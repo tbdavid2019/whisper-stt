@@ -3,7 +3,7 @@ import whisper
 import os
 import requests
 from pytube import YouTube
-from moviepy.editor import AudioFileClip
+from pydub import AudioSegment
 
 # 載入模型，預設為 small
 MODEL_OPTIONS = ["tiny", "base", "small", "medium", "large", "large-v2", "large-v3"]
@@ -18,11 +18,11 @@ def download_audio_from_youtube(youtube_url):
         if not video_stream:
             return None, "無法找到適合的音訊流"
         output_path = video_stream.download(filename="temp_audio.mp4")
-        # 確保音訊格式適合 Whisper，將其轉為 WAV 格式
-        audio_clip = AudioFileClip(output_path)
+        
+        # 使用 pydub 轉換為 WAV 格式
+        audio = AudioSegment.from_file(output_path)
         wav_output_path = "temp_audio.wav"
-        audio_clip.write_audiofile(wav_output_path, codec="pcm_s16le")
-        audio_clip.close()
+        audio.export(wav_output_path, format="wav")
         os.remove(output_path)  # 刪除原始 MP4 文件
         return wav_output_path, None
     except Exception as e:

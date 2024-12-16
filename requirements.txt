@@ -2,5 +2,6 @@ gradio
 openai-whisper
 openai
 pytube
-moviepy
 imageio[ffmpeg]
+ffmpeg
+pydub
