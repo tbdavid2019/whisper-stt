@@ -2,8 +2,9 @@ import gradio as gr
 import whisper
 import os
 import requests
-from pytube import YouTube
 from pydub import AudioSegment
+import os
+from yt_dlp import YoutubeDL
 
 # 載入模型，預設為 small
 MODEL_OPTIONS = ["tiny", "base", "small", "medium", "large", "large-v2", "large-v3"]
@@ -13,18 +14,25 @@ DEFAULT_PROMPT = "請轉錄以下內容為繁體中文"
 # 處理 YouTube URL 並下載音訊
 def download_audio_from_youtube(youtube_url):
     try:
-        yt = YouTube(youtube_url)
-        video_stream = yt.streams.filter(only_audio=True, file_extension="mp4").first()
-        if not video_stream:
-            return None, "無法找到適合的音訊流"
-        output_path = video_stream.download(filename="temp_audio.mp4")
+        # 使用 yt-dlp 下載音訊
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'outtmpl': 'temp_audio.%(ext)s',
+            'quiet': True,
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'wav',
+                'preferredquality': '192',
+            }],
+        }
+        with YoutubeDL(ydl_opts) as ydl:
+            ydl.download([youtube_url])
         
-        # 使用 pydub 轉換為 WAV 格式
-        audio = AudioSegment.from_file(output_path)
-        wav_output_path = "temp_audio.wav"
-        audio.export(wav_output_path, format="wav")
-        os.remove(output_path)  # 刪除原始 MP4 文件
-        return wav_output_path, None
+        # 查找轉換後的音訊檔案
+        for file in os.listdir():
+            if file.endswith(".wav"):
+                return file, None
+        return None, "音訊下載失敗"
     except Exception as e:
         return None, f"下載音訊失敗: {str(e)}"
 

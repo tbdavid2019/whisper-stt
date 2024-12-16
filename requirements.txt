@@ -1,7 +1,7 @@
 gradio
 openai-whisper
 openai
-pytube
 imageio[ffmpeg]
 ffmpeg
 pydub
+yt-dlp
