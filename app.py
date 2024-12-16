@@ -11,14 +11,17 @@ MODEL_OPTIONS = ["tiny", "base", "small", "medium", "large", "large-v2", "large-
 DEFAULT_MODEL = "small"
 DEFAULT_PROMPT = "請轉錄以下內容為繁體中文"
 
-# 處理 YouTube URL 並下載音訊
+# 使用 Cookies 支援 YouTube 下載
+COOKIES_FILE = "cookies.txt"  # 上傳 cookies.txt 文件至同一目錄
+
 def download_audio_from_youtube(youtube_url):
     try:
-        # 使用 yt-dlp 下載音訊
+        # 使用 yt-dlp 下載音訊，附帶 cookies
         ydl_opts = {
             'format': 'bestaudio/best',
             'outtmpl': 'temp_audio.%(ext)s',
             'quiet': True,
+            'cookiefile': COOKIES_FILE,  # 使用 cookies.txt
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'wav',
