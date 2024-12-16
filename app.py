@@ -70,7 +70,7 @@ use_openai_input = gr.Checkbox(label="使用 OpenAI Whisper", value=False)
 openai_key_input = gr.Textbox(label="OpenAI API Key", type="password", placeholder="請輸入您的 OpenAI API Key")
 text_output = gr.Textbox(label="轉錄結果")
 
-description = "上傳音頻文件或提供 YouTube 影片網址，選擇 Whisper 模型來轉錄音頻內容。您可以使用本機模型或者 OpenAI Whisper 服務。"
+description = "上傳音頻文件或提供 YouTube 影片網址，選擇 Whisper 模型來轉錄音頻內容。您可以使用 (1) 免費本機模型  或  (2)付費的 OpenAI API Whisper 服務。"
 
 demo = gr.Interface(
     fn=transcribe_audio, 

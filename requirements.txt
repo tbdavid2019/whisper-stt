@@ -1,5 +1,6 @@
-gradio==3.15.0
+gradio
 openai-whisper
 openai
 pytube
 moviepy
+imageio[ffmpeg]
