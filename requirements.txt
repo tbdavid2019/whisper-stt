@@ -1,3 +1,5 @@
 gradio==3.15.0
 openai-whisper
 openai
+pytube
+moviep
