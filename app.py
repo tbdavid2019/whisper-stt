@@ -69,7 +69,7 @@ def transcribe_audio(audio, model_size, prompt, use_openai, openai_api_key, yout
     else:
         # 使用本地模型
         model = whisper.load_model(model_size)
-        result = model.transcribe(audio, prompt=prompt)
+        result = model.transcribe(audio, language="zh", task="transcribe", initial_prompt=prompt)
         return result["text"]
 
 # 使用 Gradio 構建介面
