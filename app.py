@@ -5,14 +5,51 @@ import requests
 from pydub import AudioSegment
 import os
 from yt_dlp import YoutubeDL
+import math
 
 # 載入模型，預設為 small
 MODEL_OPTIONS = ["tiny", "base", "small", "medium", "large", "large-v2", "large-v3"]
 DEFAULT_MODEL = "small"
 DEFAULT_PROMPT = "請轉錄以下內容為繁體中文"
+MAX_FILE_SIZE_MB = 25  # OpenAI API 文件大小限制為 25MB
 
 # 使用 Cookies 支援 YouTube 下載
 COOKIES_FILE = "cookies.txt"  # 上傳 cookies.txt 文件至同一目錄
+
+# 分割音頻文件
+def split_audio_file(file_path, max_size_mb=MAX_FILE_SIZE_MB):
+    try:
+        # 檢查文件大小
+        file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
+        if file_size_mb <= max_size_mb:
+            return [file_path]  # 文件大小在限制內，不需要分割
+        
+        # 載入音頻
+        audio = AudioSegment.from_file(file_path)
+        duration_ms = len(audio)
+        
+        # 計算需要分割的段數
+        segments_count = math.ceil(file_size_mb / max_size_mb)
+        segment_duration = duration_ms // segments_count
+        
+        # 分割音頻
+        file_name = os.path.splitext(file_path)[0]
+        file_ext = os.path.splitext(file_path)[1]
+        segment_files = []
+        
+        for i in range(segments_count):
+            start_time = i * segment_duration
+            end_time = min((i + 1) * segment_duration, duration_ms)
+            segment = audio[start_time:end_time]
+            
+            segment_path = f"{file_name}_part{i+1}{file_ext}"
+            segment.export(segment_path, format=file_ext.replace(".", ""))
+            segment_files.append(segment_path)
+        
+        return segment_files
+    except Exception as e:
+        print(f"分割音頻文件時出錯: {str(e)}")
+        return [file_path]  # 發生錯誤時返回原始文件
 
 def download_audio_from_youtube(youtube_url):
     try:
@@ -53,21 +90,50 @@ def transcribe_audio(audio, model_size, prompt, use_openai, openai_api_key, yout
     if use_openai:
         if not openai_api_key:
             return "請輸入 OpenAI API Key"
-        headers = {
-            "Authorization": f"Bearer {openai_api_key}"
-        }
-        files = {
-            "file": (os.path.basename(audio), open(audio, "rb"))
-        }
-        data = {
-            "model": "whisper-1",
-            "prompt": prompt
-        }
-        response = requests.post("https://api.openai.com/v1/audio/transcriptions", headers=headers, files=files, data=data)
-        if response.status_code == 200:
-            return response.json().get("text", "轉錄失敗")
-        else:
-            return f"轉錄失敗: {response.status_code} - {response.text}"
+        
+        # 檢查文件大小並分割（如果需要）
+        audio_segments = split_audio_file(audio)
+        
+        if len(audio_segments) > 1:
+            print(f"音頻文件已分割為 {len(audio_segments)} 個部分")
+        
+        full_transcription = ""
+        
+        # 處理每個音頻段
+        for i, segment_path in enumerate(audio_segments):
+            try:
+                headers = {
+                    "Authorization": f"Bearer {openai_api_key}",
+                    "Content-Type": "multipart/form-data"
+                }
+                
+                with open(segment_path, "rb") as f:
+                    files = {
+                        "file": (os.path.basename(segment_path), f, "audio/mpeg")
+                    }
+                    
+                    data = {
+                        "model": "gpt-4o-mini-transcribe",  # 使用新模型
+                        "prompt": prompt
+                    }
+                    
+                    response = requests.post(
+                        "https://api.openai.com/v1/audio/transcriptions",
+                        headers=headers,
+                        files=files,
+                        data=data
+                    )
+                
+                if response.status_code == 200:
+                    segment_text = response.json().get("text", "")
+                    full_transcription += segment_text + " "
+                else:
+                    return f"轉錄失敗 (部分 {i+1}/{len(audio_segments)}): {response.status_code} - {response.text}"
+            
+            except Exception as e:
+                return f"轉錄失敗 (部分 {i+1}/{len(audio_segments)}): {str(e)}"
+        
+        return full_transcription.strip()
     else:
         # 使用本地模型
         model = whisper.load_model(model_size)
