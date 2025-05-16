@@ -6,50 +6,27 @@ from pydub import AudioSegment
 import os
 from yt_dlp import YoutubeDL
 import math
+import shutil
+import subprocess
 
 # 載入模型，預設為 small
 MODEL_OPTIONS = ["tiny", "base", "small", "medium", "large", "large-v2", "large-v3"]
 DEFAULT_MODEL = "small"
 DEFAULT_PROMPT = "請轉錄以下內容為繁體中文"
-MAX_FILE_SIZE_MB = 25  # OpenAI API 文件大小限制為 25MB
+MAX_FILE_SIZE_MB = 24  # OpenAI API 文件大小限制為 25MB
 
 # 使用 Cookies 支援 YouTube 下載
 COOKIES_FILE = "cookies.txt"  # 上傳 cookies.txt 文件至同一目錄
 
-# 分割音頻文件
-def split_audio_file(file_path, max_size_mb=MAX_FILE_SIZE_MB):
+# 檢查文件大小
+def check_file_size(file_path, max_size_mb=MAX_FILE_SIZE_MB):
     try:
         # 檢查文件大小
         file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
-        if file_size_mb <= max_size_mb:
-            return [file_path]  # 文件大小在限制內，不需要分割
-        
-        # 載入音頻
-        audio = AudioSegment.from_file(file_path)
-        duration_ms = len(audio)
-        
-        # 計算需要分割的段數
-        segments_count = math.ceil(file_size_mb / max_size_mb)
-        segment_duration = duration_ms // segments_count
-        
-        # 分割音頻
-        file_name = os.path.splitext(file_path)[0]
-        file_ext = os.path.splitext(file_path)[1]
-        segment_files = []
-        
-        for i in range(segments_count):
-            start_time = i * segment_duration
-            end_time = min((i + 1) * segment_duration, duration_ms)
-            segment = audio[start_time:end_time]
-            
-            segment_path = f"{file_name}_part{i+1}{file_ext}"
-            segment.export(segment_path, format=file_ext.replace(".", ""))
-            segment_files.append(segment_path)
-        
-        return segment_files
+        return file_size_mb <= max_size_mb, file_size_mb
     except Exception as e:
-        print(f"分割音頻文件時出錯: {str(e)}")
-        return [file_path]  # 發生錯誤時返回原始文件
+        print(f"檢查文件大小時出錯: {str(e)}")
+        return True, 0  # 發生錯誤時假設文件大小在限制內
 
 def download_audio_from_youtube(youtube_url):
     try:
@@ -91,54 +68,52 @@ def transcribe_audio(audio, model_size, prompt, use_openai, openai_api_key, yout
         if not openai_api_key:
             return "請輸入 OpenAI API Key"
         
-        # 檢查文件大小並分割（如果需要）
-        audio_segments = split_audio_file(audio)
+        # 檢查文件大小
+        is_size_ok, file_size_mb = check_file_size(audio)
+        if not is_size_ok:
+            return f"音頻文件大小 ({file_size_mb:.1f}MB) 超過 OpenAI API 限制 (25MB)。請上傳較小的文件或使用本地模型。"
         
-        if len(audio_segments) > 1:
-            print(f"音頻文件已分割為 {len(audio_segments)} 個部分")
-        
-        full_transcription = ""
-        
-        # 處理每個音頻段
-        for i, segment_path in enumerate(audio_segments):
-            try:
-                headers = {
-                    "Authorization": f"Bearer {openai_api_key}",
-                    "Content-Type": "multipart/form-data"
+        try:
+            headers = {
+                "Authorization": f"Bearer {openai_api_key}"
+            }
+            
+            with open(audio, "rb") as f:
+                files = {
+                    "file": (os.path.basename(audio), f)
                 }
                 
-                with open(segment_path, "rb") as f:
-                    files = {
-                        "file": (os.path.basename(segment_path), f, "audio/mpeg")
-                    }
-                    
-                    data = {
-                        "model": "gpt-4o-mini-transcribe",  # 使用新模型
-                        "prompt": prompt
-                    }
-                    
-                    response = requests.post(
-                        "https://api.openai.com/v1/audio/transcriptions",
-                        headers=headers,
-                        files=files,
-                        data=data
-                    )
+                data = {
+                    "model": "whisper-1",
+                    "prompt": prompt
+                }
                 
-                if response.status_code == 200:
-                    segment_text = response.json().get("text", "")
-                    full_transcription += segment_text + " "
-                else:
-                    return f"轉錄失敗 (部分 {i+1}/{len(audio_segments)}): {response.status_code} - {response.text}"
+                response = requests.post(
+                    "https://api.openai.com/v1/audio/transcriptions",
+                    headers=headers,
+                    files=files,
+                    data=data
+                )
             
-            except Exception as e:
-                return f"轉錄失敗 (部分 {i+1}/{len(audio_segments)}): {str(e)}"
+            if response.status_code == 200:
+                return response.json().get("text", "轉錄失敗")
+            else:
+                return f"轉錄失敗: {response.status_code} - {response.text}"
         
-        return full_transcription.strip()
+        except Exception as e:
+            return f"轉錄失敗: {str(e)}"
     else:
+        # 檢查 ffmpeg 是否已安裝
+        if not is_ffmpeg_installed():
+            return "錯誤: 找不到 ffmpeg。請安裝 ffmpeg 後再使用本地模型。在 Mac 上，您可以使用 'brew install ffmpeg' 命令安裝。"
+        
         # 使用本地模型
-        model = whisper.load_model(model_size)
-        result = model.transcribe(audio, language="zh", task="transcribe", initial_prompt=prompt)
-        return result["text"]
+        try:
+            model = whisper.load_model(model_size)
+            result = model.transcribe(audio, language="zh", task="transcribe", initial_prompt=prompt)
+            return result["text"]
+        except Exception as e:
+            return f"轉錄失敗: {str(e)}"
 
 # 使用 Gradio 構建介面
 audio_input = gr.Audio(type="filepath", label="上傳音頻")
@@ -158,5 +133,14 @@ demo = gr.Interface(
     description=description,
     title="Whisper 語音轉錄應用"
 )
+
+# 檢查 ffmpeg 是否已安裝
+def is_ffmpeg_installed():
+    try:
+        # 嘗試執行 ffmpeg 命令
+        subprocess.run(["ffmpeg", "-version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+        return True
+    except FileNotFoundError:
+        return False
 
 demo.launch()
