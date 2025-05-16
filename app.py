@@ -57,11 +57,13 @@ def transcribe_audio(audio, model_size, prompt, use_openai, openai_api_key, yout
             "Authorization": f"Bearer {openai_api_key}"
         }
         files = {
-            "file": (os.path.basename(audio), open(audio, "rb")),
-            "model": (None, "whisper-1"),
-            "prompt": (None, prompt)
+            "file": (os.path.basename(audio), open(audio, "rb"))
         }
-        response = requests.post("https://api.openai.com/v1/audio/transcriptions", headers=headers, files=files)
+        data = {
+            "model": "whisper-1",
+            "prompt": prompt
+        }
+        response = requests.post("https://api.openai.com/v1/audio/transcriptions", headers=headers, files=files, data=data)
         if response.status_code == 200:
             return response.json().get("text", "轉錄失敗")
         else:
